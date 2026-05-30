@@ -142,3 +142,21 @@ def test_verify_default_true_reaches_httpx_client(write_config, monkeypatch):
 
     with _client(write_config):
         assert captured["verify"] is True
+
+
+def test_build_request_args_normalizes_path_and_method(write_config):
+    """A path without a leading slash is normalized; method is uppercased."""
+    with _client(write_config) as client:
+        args = client._build_request_args("get", "api/v1/jobs", params={"a": 1})
+    assert args["method"] == "GET"
+    assert args["url"] == "/api/v1/jobs"
+    assert args["params"] == {"a": 1}
+
+
+def test_should_retry_decisions(write_config):
+    """Transport errors retry; retryable statuses retry; others do not."""
+    with _client(write_config) as client:
+        assert client._should_retry(httpx.ConnectError("x")) is True
+        assert client._should_retry(503) is True
+        assert client._should_retry(404) is False
+        assert client._should_retry(ValueError("nope")) is False

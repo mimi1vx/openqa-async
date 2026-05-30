@@ -62,3 +62,24 @@ def test_no_key_means_get_only_mode(write_config):
         assert client.apisecret == ""
         assert client._apikey == ""
         assert "X-API-Key" not in client._default_headers()
+
+
+def test_empty_server_defaults_to_first_config_section(write_config):
+    """An empty ``server`` falls back to the first section in client.conf."""
+    write_config(
+        "[openqa.first.com]\nkey = AAAAAAAA\nsecret = BBBBBBBB\n"
+        "[openqa.second.com]\nkey = CCCCCCCC\nsecret = DDDDDDDD\n"
+    )
+    with OpenQAClient(server="") as client:
+        assert client.baseurl == "https://openqa.first.com"
+        assert client._apikey == "AAAAAAAA"
+        assert client.apisecret == "BBBBBBBB"
+
+
+def test_empty_server_no_config_defaults_to_localhost(write_config):
+    """With no config file at all, an empty ``server`` defaults to localhost."""
+    # ``write_config`` isolates HOME and strips /etc; not calling it here
+    # still leaves discovery hermetic because the fixture is requested.
+    with OpenQAClient(server="") as client:
+        assert client.baseurl == "http://localhost"
+        assert client.apisecret == ""
