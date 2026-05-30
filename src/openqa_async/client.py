@@ -68,8 +68,8 @@ class OpenQAClient(_OpenQAClientBase):
         """Send ``request`` with retry/backoff and return parsed output.
 
         Retries on the upstream status-code set and on transport errors,
-        sleeping with exponential backoff between attempts. A status code
-        of ``retries`` means up to that many *retries* (so ``retries + 1``
+        sleeping with exponential backoff between attempts. A value of
+        ``retries`` means up to that many *retries* (so ``retries + 1``
         total attempts). After the attempts are exhausted, a transport
         failure raises :class:`~openqa_async.exceptions.ConnectionError`
         and a non-2xx response raises
