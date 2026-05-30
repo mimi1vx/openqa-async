@@ -25,7 +25,7 @@ defaulting, headers, auth, response handling, retry decisions) lives in
 import asyncio
 import ssl
 from types import TracebackType
-from typing import Any
+from typing import Any, Self
 
 import httpx
 
@@ -121,7 +121,7 @@ class AsyncOpenQAClient(_OpenQAClientBase):
         """Close the underlying ``httpx.AsyncClient``."""
         await self.client.aclose()
 
-    async def __aenter__(self) -> "AsyncOpenQAClient":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(

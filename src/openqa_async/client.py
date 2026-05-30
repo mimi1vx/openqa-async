@@ -22,7 +22,7 @@ retry decisions) lives in :class:`~openqa_async._base._OpenQAClientBase`.
 import ssl
 import time
 from types import TracebackType
-from typing import Any
+from typing import Any, Self
 
 import httpx
 
@@ -120,7 +120,7 @@ class OpenQAClient(_OpenQAClientBase):
         """Close the underlying ``httpx.Client``."""
         self.client.close()
 
-    def __enter__(self) -> "OpenQAClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(

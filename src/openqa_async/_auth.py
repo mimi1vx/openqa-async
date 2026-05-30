@@ -19,6 +19,7 @@ synchronous and asynchronous clients.
 
 import hmac
 import time
+from collections.abc import Generator
 from hashlib import sha1
 
 import httpx
@@ -36,10 +37,12 @@ class OpenQAAuth(httpx.Auth):
     client, not here.
     """
 
-    def __init__(self, apisecret: str | None) -> None:
+    def __init__(self, apisecret: str) -> None:
         self.apisecret = apisecret
 
-    def auth_flow(self, request: httpx.Request):
+    def auth_flow(
+        self, request: httpx.Request
+    ) -> Generator[httpx.Request, httpx.Response]:
         if not self.apisecret:
             # GET works without auth; nothing to sign.
             yield request
@@ -51,7 +54,7 @@ class OpenQAAuth(httpx.Auth):
         ts = str(time.time())
         apihash = hmac.new(
             self.apisecret.encode("utf-8"),
-            f"{path}{ts}".encode("utf-8"),
+            f"{path}{ts}".encode(),
             sha1,
         ).hexdigest()
         request.headers["X-API-Microtime"] = ts

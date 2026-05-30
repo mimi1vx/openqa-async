@@ -46,7 +46,7 @@ def test_known_value_hmac(monkeypatch):
     ts = str(fixed_ts)
     path = request.url.raw_path.decode("ascii")
     expected = hmac.new(
-        secret.encode("utf-8"), f"{path}{ts}".encode("utf-8"), sha1
+        secret.encode("utf-8"), f"{path}{ts}".encode(), sha1
     ).hexdigest()
 
     assert signed.headers["X-API-Microtime"] == ts
@@ -85,11 +85,11 @@ def test_path_fixups_space_and_tilde(monkeypatch):
 
     ts = str(fixed_ts)
     expected = hmac.new(
-        secret.encode("utf-8"), f"{fixed_path}{ts}".encode("utf-8"), sha1
+        secret.encode("utf-8"), f"{fixed_path}{ts}".encode(), sha1
     ).hexdigest()
     # Hash must match the fixed-up path, NOT the raw path.
     raw_hash = hmac.new(
-        secret.encode("utf-8"), f"{raw_path}{ts}".encode("utf-8"), sha1
+        secret.encode("utf-8"), f"{raw_path}{ts}".encode(), sha1
     ).hexdigest()
 
     assert signed.headers["X-API-Hash"] == expected
