@@ -25,7 +25,10 @@ request/retry loop, which is the one part that genuinely differs between
 import configparser
 import logging
 import os
+import random
 import ssl
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -40,6 +43,14 @@ logger = logging.getLogger(__name__)
 #: HTTP status codes that warrant a retry, matching upstream's tuple.
 _RETRY_STATUS = frozenset((408, 413, 429, 444, 500, 502, 503, 504, 509, 521, 522, 599))
 
+#: Default timeout for every request; openQA servers are frequently slow,
+#: so this is higher than httpx's own 5 s default. ``None`` disables it.
+_DEFAULT_TIMEOUT: float | httpx.Timeout | None = 30.0
+
+#: HTTP methods safe to retry after a transport error without risking a
+#: double-fired mutation. ``POST`` is deliberately excluded.
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "PUT", "DELETE"})
+
 
 class _OpenQAClientBase:
     """Shared, transport-agnostic state and helpers for the openQA clients."""
@@ -51,10 +62,25 @@ class _OpenQAClientBase:
         retries: int = 5,
         wait: int = 10,
         verify: bool | str | ssl.SSLContext = True,
+        timeout: float | httpx.Timeout | None = _DEFAULT_TIMEOUT,
+        retry_methods: frozenset[str] | None = None,
+        deadline: float | None = None,
     ) -> None:
         self.retries = retries
         self.wait = wait
         self.verify = verify
+        #: Per-request timeout forwarded to the httpx client; ``None`` disables.
+        self.timeout = timeout
+        #: HTTP methods eligible for transport-error retries (default: the
+        #: idempotent set). ``POST`` is excluded so mutations aren't re-sent.
+        self.retry_methods = (
+            _IDEMPOTENT_METHODS if retry_methods is None else frozenset(retry_methods)
+        )
+        #: Optional overall wall-clock budget (seconds) for all retries of a
+        #: single call; ``None`` means no cap.
+        self.deadline = deadline
+        #: RNG for jittered backoff; overridable in tests for determinism.
+        self._rng = random.Random()
 
         # Read in config files.
         config = configparser.ConfigParser()
@@ -172,6 +198,43 @@ class _OpenQAClientBase:
             return status_or_exc in _RETRY_STATUS
         return False
 
+    def _may_retry_transport(self, method: str, retry_non_idempotent: bool) -> bool:
+        """Whether a transport error on ``method`` should be retried."""
+        return retry_non_idempotent or method.upper() in self.retry_methods
+
     def _next_wait(self, wait: int | float) -> int | float:
         """Exponential backoff, capped at 60 seconds (matches upstream)."""
         return min(wait + wait, 60)
+
+    def _backoff(self, wait: int | float) -> float:
+        """Full-jitter backoff: a random value in ``[0, min(wait, 60)]``.
+
+        ``wait`` carries the growing exponential base (doubled via
+        ``_next_wait`` between attempts); jitter spreads retries to avoid a
+        thundering herd. Uses the injectable ``self._rng`` for determinism.
+        """
+        return self._rng.uniform(0, min(wait, 60))
+
+    def _parse_retry_after(self, resp: httpx.Response) -> float | None:
+        """Parse a ``Retry-After`` header into a non-negative delay (seconds).
+
+        Accepts an integer number of seconds or an HTTP-date; returns ``None``
+        for a missing or malformed header. Negative/past values clamp to 0.
+        """
+        value = resp.headers.get("retry-after")
+        if value is None:
+            return None
+        value = value.strip()
+        try:
+            return max(0.0, float(int(value)))
+        except ValueError:
+            pass
+        try:
+            when = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if when is None:
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        return max(0.0, (when - datetime.now(UTC)).total_seconds())

@@ -147,6 +147,30 @@ def test_verify_default_true_reaches_async_httpx_client(write_config, monkeypatc
     assert captured["verify"] is True
 
 
+def test_default_timeout_reaches_async_httpx_client(write_config):
+    client = _aclient(write_config)
+    assert client.client.timeout == httpx.Timeout(30.0)
+
+
+def test_explicit_timeout_reaches_async_httpx_client(write_config):
+    client = _aclient(write_config, timeout=5.0)
+    assert client.client.timeout == httpx.Timeout(5.0)
+
+
+def test_timeout_none_disables_async(write_config):
+    client = _aclient(write_config, timeout=None)
+    assert client.client.timeout == httpx.Timeout(None)
+
+
+@respx.mock
+async def test_connection_error_message_names_exception(write_config):
+    respx.get(URL).mock(side_effect=httpx.ReadTimeout("slow"))
+    async with _aclient(write_config) as client:
+        with pytest.raises(ConnectionError) as excinfo:
+            await client.openqa_request("GET", "/api/v1/jobs", retries=0, wait=0)
+    assert "ReadTimeout" in str(excinfo.value)
+
+
 @respx.mock
 async def test_sync_async_parity(write_config):
     """The same respx endpoint yields identical results from both clients."""

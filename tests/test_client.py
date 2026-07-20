@@ -160,3 +160,27 @@ def test_should_retry_decisions(write_config):
         assert client._should_retry(503) is True
         assert client._should_retry(404) is False
         assert client._should_retry(ValueError("nope")) is False
+
+
+def test_default_timeout_reaches_httpx_client(write_config):
+    with _client(write_config) as client:
+        assert client.client.timeout == httpx.Timeout(30.0)
+
+
+def test_explicit_timeout_reaches_httpx_client(write_config):
+    with _client(write_config, timeout=5.0) as client:
+        assert client.client.timeout == httpx.Timeout(5.0)
+
+
+def test_timeout_none_disables(write_config):
+    with _client(write_config, timeout=None) as client:
+        assert client.client.timeout == httpx.Timeout(None)
+
+
+@respx.mock
+def test_connection_error_message_names_exception(write_config):
+    respx.get(URL).mock(side_effect=httpx.ReadTimeout("slow"))
+    with _client(write_config) as client:
+        with pytest.raises(ConnectionError) as excinfo:
+            client.openqa_request("GET", "/api/v1/jobs", retries=0, wait=0)
+    assert "ReadTimeout" in str(excinfo.value)
