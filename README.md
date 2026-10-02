@@ -37,9 +37,7 @@ from openqa_async import AsyncOpenQAClient
 
 async def main():
     async with AsyncOpenQAClient(server="openqa.opensuse.org") as client:
-        jobs = await client.openqa_request(
-            "GET", "/api/v1/jobs", params={"limit": 10}
-        )
+        jobs = await client.openqa_request("GET", "/api/v1/jobs", params={"limit": 10})
         print(jobs)
 
 
@@ -52,13 +50,13 @@ Both clients share the same request method (the async one is awaitable):
 
 ```python
 openqa_request(
-    method,            # "GET", "POST", ...
-    path,              # e.g. "/api/v1/jobs" (a leading slash is optional)
-    params=None,       # query-string parameters
-    retries=None,      # override the client default (5)
-    wait=None,         # override the initial backoff in seconds (10)
-    data=None,         # form-encoded body
-    json=None,         # JSON body
+    method,  # "GET", "POST", ...
+    path,  # e.g. "/api/v1/jobs" (a leading slash is optional)
+    params=None,  # query-string parameters
+    retries=None,  # override the client default (5)
+    wait=None,  # override the initial backoff in seconds (10)
+    data=None,  # form-encoded body
+    json=None,  # JSON body
 )
 ```
 
